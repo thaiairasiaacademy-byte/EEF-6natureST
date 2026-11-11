@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Report - Signature Strengths</title>
+    <!-- ใช้ฟอนต์ Sarabun สำหรับงานเอกสาร/การพิมพ์ -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- CSS สำหรับจัดหน้ากระดาษและการแสดงผล --- */
+        body {
+            font-family: 'Sarabun', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            -webkit-print-color-adjust: exact !important; /* บังคับให้พิมพ์สีพื้นหลังติด */
+            print-color-adjust: exact !important;
+        }
+
+        /* แถบควบคุมด้านบน (ซ่อนตอนพิมพ์) */
+        .admin-controls {
+            background: #343a40;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .admin-controls button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-family: 'Sarabun', sans-serif;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .admin-controls button:hover { background: #218838; }
+
+        /* ขนาดและขอบเขตกระดาษ A4 */
+        .page {
+            box-sizing: border-box;
+            width: 21cm;
+            min-height: 29.7cm;
+            margin: 2cm auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            page-break-after: always; /* บังคับขึ้นหน้าใหม่เสมอ */
+        }
+
+        /* สไตล์ส่วน Header ที่เป็นสี */
+        .report-header-color {
+            padding: 3em 2em 10em 2em; /* เผื่อพื้นที่ให้ Card ลอยทับ */
+            text-align: center;
+            position: relative;
+        }
+        .report-header-color img {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1em;
+            background-color: white;
+            border-radius: 50%;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .report-header-color h1 {
+            font-weight: 700;
+            margin-bottom: 0.5em;
+            font-size: 2.2em;
+        }
+        .report-header-color p {
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        /* สไตล์ส่วน Content Card (กล่องสีขาวที่ลอยทับ) */
+        .content-card {
+            background-color: white;
+            margin: -7em 2em 2em 2em; /* ดันให้ไปซ้อนทับ Header */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            padding: 2.5em;
+            position: relative;
+            z-index: 10;
+        }
+
+        .dominant-definition {
+            font-size: 1.2em;
+            line-height: 1.6;
+            text-align: center;
+            margin-bottom: 2em;
+            color: #444;
+        }
+
+        .section-title {
+            font-size: 1.6em;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 1em;
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .top5-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .top5-list li {
+            font-size: 1.3em;
+            line-height: 1.8;
+            margin-bottom: 0.5em;
+            color: #333;
+        }
+
+        .footer-info {
+            text-align: center;
+            font-size: 1em;
+            color: #777;
+            margin-top: auto; /* ดันให้อยู่ล่างสุดของกระดาษ */
+            padding-bottom: 2em;
+        }
+
+        /* --- ตั้งค่าสำหรับการพิมพ์ (Print) --- */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            body { background: none; }
+            .admin-controls { display: none; } /* ซ่อนแถบควบคุมตอนพิมพ์ */
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+            .page:last-child {
+                page-break-after: avoid; /* หน้าสุดท้ายไม่ต้องขึ้นหน้าใหม่เปล่าๆ */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- แถบควบคุมด้านบน -->
+    <div class="admin-controls">
+        <h2 style="margin:0;">ระบบจัดการ Report (Batch Print)</h2>
+        <div>
+            <span id="status-text" style="margin-right: 20px;">กำลังโหลดข้อมูล...</span>
+            <button onclick="window.print()">🖨️ สั่งพิมพ์ทั้งหมด (Print)</button>
+        </div>
+    </div>
+
+    <!-- พื้นที่แสดงหน้ากระดาษ A4 ทั้งหมด -->
+    <div id="all-reports-container"></div>
+
+    <!-- Firebase SDK (Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // *** ใส่ Firebase Config ชุดเดียวกับไฟล์ index.html ของคุณตรงนี้ ***
+const firebaseConfig = {
+  apiKey: "AIzaSyCt1sthAka7e96OOv7y0IKnlip3pilA-00",
+  authDomain: "st90-eef97.firebaseapp.com",
+  projectId: "st90-eef97",
+  storageBucket: "st90-eef97.firebasestorage.app",
+  messagingSenderId: "381519034066",
+  appId: "1:381519034066:web:16e5e46300be11bbe4df0b",
+  measurementId: "G-RSF17XFT0L"
+};
+        // **********************************
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // ข้อมูลสไตล์อ้างอิง
+        const reportGroupStyles = {
+            "พลังแห่งวิสัยทัศน์ (Visionary Power)": { backgroundColor: "#6f42c1", textColor: "white", iconUrl: "https://s.imgz.io/2025/09/18/Visione9072d69abfbe932.png", definition: "คือพลังที่ตอบคำถามที่สำคัญที่สุดว่า 'เรากำลังจะไปที่ไหน และทำไมที่นั่นจึงสำคัญ' พลังนี้ไม่ได้มองแค่ปัจจุบัน แต่คือการวาดภาพอนาคตที่น่าตื่นเต้นและชัดเจนจนจับต้องได้ พร้อมทั้งวางแผนที่เชิงกลยุทธ์เสมือนเป็น 'เข็มทิศ' ที่เที่ยงตรง เพื่อให้แน่ใจว่าทุกย่างก้าวของการทำงานมีความหมายและมุ่งไปสู่จุดหมายเดียวกัน" },
+            "พลังแห่งการสร้างสรรค์ (Creative Power)": { backgroundColor: "#ffc107", textColor: "#212529", iconUrl: "https://s.imgz.io/2025/09/18/Creative6130d3fda7d60935.png", definition: "คือพลังที่กล้าตั้งคำถามกับสิ่งที่เป็นอยู่ว่า 'แล้วถ้ามีวิธีที่ดีกว่านี้ล่ะ?' พลังนี้คือการท้าทายความจำเจและคิดนอกกรอบ เปรียบเสมือน 'หลอดไฟ' ที่ส่องสว่างขึ้นมาในความมืด มันคือการจุดประกายไอเดียใหม่ๆ, ค้นพบทางออกที่ไม่เคยมีใครเห็น, และผลักดันให้เกิดนวัตกรรมที่สร้างความแตกต่างและนำพาองค์กรไปสู่การเติบโตที่ก้าวกระโดด" },
+            "พลังแห่งการขับเคลื่อน (Driving Power)": { backgroundColor: "#dc3545", textColor: "white", iconUrl: "https://s.imgz.io/2025/09/18/Drivingd1af403aa952dea6.png", definition: "คือพลังที่เปลี่ยนวิสัยทัศน์ให้กลายเป็นความจริง มันคือแรงขับเคลื่อนที่ไม่เคยหยุดนิ่งซึ่งถามว่า 'เราจะทำให้มันเกิดขึ้นได้อย่างไร และเมื่อไหร่?' พลังนี้เปรียบเสมือน 'เครื่องยนต์' ที่ทรงพลังซึ่งแปลงแผนการที่สวยหรูให้กลายเป็นผลลัพธ์ที่จับต้องได้ มันคือการลงมือทำ, การจัดการอย่างมีประสิทธิภาพ, และความมุ่งมั่นที่จะผลักดันงานให้สำเร็จลุล่วง" },
+            "พลังแห่งการเชื่อมโยง (Connecting Power)": { backgroundColor: "#007bff", textColor: "white", iconUrl: "https://s.imgz.io/2025/09/16/Connectaa37145b1eefda92.png", definition: "คือพลังที่สร้าง 'ความร่วมมือ' ให้เกิดขึ้นอย่างแท้จริง มันตอบคำถามว่า 'เราจะทำงานร่วมกันให้ดีที่สุดได้อย่างไร?' พลังนี้เปรียบเสมือน 'เครือข่ายอินเทอร์เน็ต' ที่เชื่อมโยงทุกคนเข้าไว้ด้วยกัน ทำให้เกิดการสื่อสารที่ไร้รอยต่อ, ความเข้าอกเข้าใจ, และความไว้วางใจ ซึ่งเป็นรากฐานสำคัญในการสร้างทีมที่แข็งแกร่งและวัฒนธรรมองค์กรที่ยอดเยี่ยม" },
+            "พลังแห่งคุณธรรม (Integrity Power)": { backgroundColor: "#737171e7", textColor: "white", iconUrl: "https://s.imgz.io/2025/09/18/Integrityc10fc536a70cc345.png", definition: "คือพลังที่เป็นแกนหลักทางจริยธรรมซึ่งคอยถามว่า 'สิ่งที่เรากำลังทำนั้นถูกต้องหรือไม่?' พลังนี้เปรียบเสมือน 'ตราชั่ง' ที่เที่ยงตรง คอยสร้างความสมดุลระหว่างผลประโยชน์กับหลักการ มันคือความซื่อสัตย์, ความรับผิดชอบ, และความเป็นธรรมที่สร้างความไว้วางใจจากทั้งภายในและภายนอกองค์กร ทำให้ความสำเร็จนั้นยั่งยืนและน่าภาคภูมิใจ" },
+            "พลังแห่งการยืนหยัด (Resilient Power)": { backgroundColor: "#28a745", textColor: "white", iconUrl: "https://s.imgz.io/2025/09/16/Resilientbd6db9760d1fb358.png", definition: "คือพลังที่แสดงศักยภาพสูงสุดในยามวิกฤต มันคือคำตอบของคำถามที่ว่า 'เมื่อเราล้มลง เราจะลุกขึ้นสู้อย่างไร?' พลังนี้เปรียบเสมือน 'ต้นหลิว' ที่สามารถโอนอ่อนผ่อนตามพายุแต่ไม่เคยหักโค่น มันคือความสามารถในการปรับตัว, การฟื้นตัวจากความล้มเหลว, และการรักษาความสงบภายใต้แรงกดดัน เพื่อให้องค์กรสามารถผ่านพ้นทุกอุปสรรคและกลับมาแข็งแกร่งกว่าเดิม" }
+        };
+
+        async function loadAllReports() {
+            const container = document.getElementById('all-reports-container');
+            const statusText = document.getElementById('status-text');
+
+            try {
+                // ดึงข้อมูลทั้งหมดจาก Collection 'assessments' เรียงตามเวลาล่าสุด (ใหม่ไปเก่า)
+                const q = query(collection(db, "assessments"), orderBy("timestamp", "desc"));
+                const querySnapshot = await getDocs(q);
+                
+                let htmlOutput = '';
+                let count = 0;
+
+                querySnapshot.forEach((doc) => {
+                    count++;
+                    const data = doc.data();
+                    
+                    // ป้องกัน Error กรณีดึงชื่อกลุ่มพลังไม่ตรง
+                    const style = reportGroupStyles[data.dominantGroup] || { 
+                        backgroundColor: "#6c757d", textColor: "white", iconUrl: "", definition: "ไม่มีคำนิยาม" 
+                    };
+
+                    // สร้างหน้า A4 1 หน้าต่อ 1 คน
+                    htmlOutput += `
+                        <div class="page">
+                            <div class="report-header-color" style="background-color: ${style.backgroundColor}; color: ${style.textColor};">
+                                <img src="${style.iconUrl}" alt="Power Icon">
+                                <p style="font-size: 1.2em; margin-bottom: 5px;">กลุ่มพลังที่โดดเด่นที่สุดของคุณคือ:</p>
+                                <h1>${data.dominantGroup}</h1>
+                            </div>
+
+                            <div class="content-card">
+                                <p class="dominant-definition">
+                                    ${style.definition}
+                                </p>
+                                
+                                <div style="margin-top: 3em;">
+                                    <h3 class="section-title">จุดแข็ง 5 อันดับแรกของคุณ</h3>
+                                    <ul class="top5-list">
+                                        ${data.top5.map((strength, index) => `
+                                            <li><strong>${index + 1}.</strong> <span style="color: #4682B4; font-weight: bold;">${strength}</span></li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div class="footer-info">
+                                <strong>ชื่อ:</strong> ${data.employeeName || '-'} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                                <strong>รหัสพนักงาน:</strong> ${data.employeeId || '-'}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                if (count === 0) {
+                    container.innerHTML = '<h2 style="text-align:center; margin-top:50px;">ยังไม่มีข้อมูลผู้ทำแบบประเมินในระบบ</h2>';
+                    statusText.innerText = `ไม่พบข้อมูล`;
+                } else {
+                    container.innerHTML = htmlOutput;
+                    statusText.innerText = `โหลดสำเร็จ: พบ ${count} รายการ`;
+                }
+
+            } catch (error) {
+                console.error("Error loading documents: ", error);
+                statusText.innerText = `เกิดข้อผิดพลาดในการโหลดข้อมูล`;
+                container.innerHTML = `<p style="text-align:center; color:red;">${error.message}</p>`;
+            }
+        }
+
+        // เรียกใช้งานฟังก์ชันเมื่อเปิดหน้าเว็บ
+        loadAllReports();
+    </script>
+</body>
+</html>
